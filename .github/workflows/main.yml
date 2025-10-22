@@ -65,3 +65,11 @@ jobs:
       - name: VM Running
         run: |
           echo "Windows VM is running! Connect via noVNC through Ngrok above."
+
+      - name: Keep Workflow Alive for 6 Hours
+        run: |
+          echo "Keeping workflow alive for 6 hours..."
+          for i in {1..360}; do
+            echo "Minute $i / 360"
+            sleep 60
+          done
