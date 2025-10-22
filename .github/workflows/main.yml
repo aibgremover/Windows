@@ -16,13 +16,23 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager \
-          novnc websockify wget unzip curl
+          novnc websockify wget unzip curl jq
+
+      - name: Install Ngrok
+        run: |
+          curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
+            | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update
+          sudo apt install -y ngrok
+          ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
       - name: Download Windows ISO
         run: |
           mkdir -p ~/windows
           cd ~/windows
-          wget -O Nano11.iso "https://archive.org/download/nano11-24h2/Nano11%2024H2.iso"
+          wget -O Nano11.iso -q --show-progress "https://archive.org/download/nano11-24h2/Nano11%2024H2.iso"
 
       - name: Create Virtual Disk
         run: |
@@ -46,16 +56,9 @@ jobs:
           # Start noVNC
           nohup websockify --web /usr/share/novnc/ 6080 localhost:5901 > novnc.log 2>&1 &
 
-      - name: Install Ngrok
-        run: |
-          wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-          unzip ngrok-stable-linux-amd64.zip
-          chmod +x ngrok
-          ./ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-
       - name: Start Ngrok Tunnel
         run: |
-          nohup ./ngrok http 6080 --log=stdout > ngrok.log 2>&1 &
+          nohup ngrok http 6080 --log=stdout > ngrok.log 2>&1 &
           sleep 10
           curl -s http://127.0.0.1:4040/api/tunnels | jq '.tunnels[0].public_url'
 
