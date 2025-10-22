@@ -1,0 +1,64 @@
+name: Windows Nano 11 VNC
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager \
+          novnc websockify wget unzip curl
+
+      - name: Download Windows ISO
+        run: |
+          mkdir -p ~/windows
+          cd ~/windows
+          wget -O Nano11.iso "https://archive.org/download/nano11-24h2/Nano11%2024H2.iso"
+
+      - name: Create Virtual Disk
+        run: |
+          qemu-img create -f qcow2 ~/windows/windows.qcow2 60G
+
+      - name: Start Windows VM with noVNC
+        run: |
+          # Start QEMU with VNC over WebSockets
+          nohup qemu-system-x86_64 \
+            -m 10G \
+            -smp 2 \
+            -hda ~/windows/windows.qcow2 \
+            -cdrom ~/windows/Nano11.iso \
+            -boot d \
+            -enable-kvm \
+            -net nic -net user \
+            -vnc :1 \
+            -display none \
+          > qemu.log 2>&1 &
+
+          # Start noVNC
+          nohup websockify --web /usr/share/novnc/ 6080 localhost:5901 > novnc.log 2>&1 &
+
+      - name: Install Ngrok
+        run: |
+          wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+          unzip ngrok-stable-linux-amd64.zip
+          chmod +x ngrok
+          ./ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+
+      - name: Start Ngrok Tunnel
+        run: |
+          nohup ./ngrok http 6080 --log=stdout > ngrok.log 2>&1 &
+          sleep 10
+          curl -s http://127.0.0.1:4040/api/tunnels | jq '.tunnels[0].public_url'
+
+      - name: VM Running
+        run: |
+          echo "Windows VM is running! Connect via noVNC through Ngrok above."
